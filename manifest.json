@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "Send Json to Anki",
+  "version": "0.1.0",
+  "description": "JSON を Anki に送る",
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "permissions": ["notifications", "clipboardWrite"],
+  "host_permissions": ["http://127.0.0.1:8765/"]
+}
