@@ -12,9 +12,9 @@ const ALLOWED_KEYS = [
 
 const LLM_PROMPT = `
 あなたは日本人英語学習者向けの語彙コーチです。
-入力として英語の表現と、その前後の文脈が渡されます。
+上記の会話でユーザーが質問した内容に関する英語の表現と語彙の全てについて，
 
-以下の 9 キーだけを持つ JSON オブジェクト 1 個だけを返してください。
+以下の 9 キーだけを持つ JSON オブジェクトの配列 を返してください。
 
 - expression
 - meaning_ja
@@ -27,8 +27,7 @@ const LLM_PROMPT = `
 - url
 
 厳守ルール：
-- JSON オブジェクト以外は一切出力しないでください。前後の説明文、コメント、コードブロック（\`\`\`）なども禁止です。
-- 上記 9 個のキーはすべて必ず含めてください。欠けているキーがあってはいけません。
+- 配列内の各オブジェクトは上記 9 個のキーをすべて必ず含めてください。欠けているキーがあってはいけません。
 - この 9 個以外のキーを追加してはいけません。
 - 各値はすべて文字列にしてください。配列・オブジェクト・null は使わないでください。
 - 情報が分からない項目は空文字列 "" にしてください。
@@ -44,12 +43,15 @@ const LLM_PROMPT = `
 - source: その表現を見かけた元ネタ（YouTube 動画名など）。分からなければ ""。
 - url: 元ネタの URL。分からなければ ""。
 
-これから、入力として JSON を 1 つ渡します。
+これから、入力として JSON 配列を 1 つ渡します。
 その JSON は次のような形です。
 
-{"expression": "ここに英語表現", "context": "ここに前後の英文文脈", "source": "ここに元ネタの簡単な説明（任意）", "url": "ここに元ネタの URL（任意）"}
+[
+  {"expression": "ここに英語表現", "context": "ここに前後の英文文脈", "source": "ここに元ネタの簡単な説明（任意）", "url": "ここに元ネタの URL（任意）"},
+  {"expression": "ここに英語表現", "context": "ここに前後の英文文脈", "source": "ここに元ネタの簡単な説明（任意）", "url": "ここに元ネタの URL（任意）"}
+]
 
-上記の入力 JSON を読み取り、指定した 9 キーだけを持つ別の JSON オブジェクトを出力してください。
+上記の入力 JSON 配列を読み取り、指定した 9 キーだけを持つ別の JSON 配列を出力してください。
 `.trim();
 
 const REQUIRED_KEYS = ALLOWED_KEYS;
@@ -62,8 +64,9 @@ const sendBtn = document.getElementById("sendBtn");
 inputEl.addEventListener("paste", (e) => {
   // ペースト完了後の値を読むため、イベントループを一周待つ
   setTimeout(() => {
-    const text = inputEl.value.trim();
-    handleText(text);
+    if (inputEl.value.trim()) {
+      setSuccess("貼り付けました。送信ボタンを押してください。");
+    }
   }, 0);
 });
 
@@ -114,20 +117,28 @@ async function copyPromptToClipboard() {
 async function handleText(text) {
   statusEl.textContent = "";
 
-  let obj;
+  let parsed;
   try {
-    obj = JSON.parse(text);
+    parsed = JSON.parse(text);
   } catch (e) {
     return setError("JSON として解析できません。");
   }
 
-  const err = validateSchema(obj);
+  const items = normalizeItems(parsed);
+  if (!items) {
+    return setError("ルートは JSON 配列（または単一オブジェクト）である必要があります。");
+  }
+  if (items.length === 0) {
+    return setError("空の配列は送信できません。");
+  }
+
+  const err = validateSchema(items);
   if (err) {
     return setError(err);
   }
 
   try {
-    await sendToAnki(obj);
+    await sendToAnki(items);
     setSuccess("Anki に追加しました。");
     // 成功したらテキストをクリア
     inputEl.value = "";
@@ -137,36 +148,51 @@ async function handleText(text) {
   }
 }
 
-function validateSchema(obj) {
-  if (typeof obj !== "object" || obj === null || Array.isArray(obj)) {
-    return "ルートは JSON オブジェクトである必要があります。";
+function normalizeItems(input) {
+  if (Array.isArray(input)) {
+    return input;
   }
-
-  const keys = Object.keys(obj);
-
-  // 余分なキーチェック
-  const extraKeys = keys.filter((k) => !ALLOWED_KEYS.includes(k));
-  if (extraKeys.length > 0) {
-    return `定義されていないキーがあります: ${extraKeys.join(", ")}`;
+  if (typeof input === "object" && input !== null) {
+    return [input];
   }
+  return null;
+}
 
-  // 欠けているキーチェック
-  const missing = REQUIRED_KEYS.filter((k) => !keys.includes(k));
-  if (missing.length > 0) {
-    return `必須キーが欠けています: ${missing.join(", ")}`;
-  }
+function validateSchema(items) {
+  for (let i = 0; i < items.length; i += 1) {
+    const obj = items[i];
+    const prefix = items.length > 1 ? `#${i + 1} ` : "";
 
-  // 型と必須値のチェック
-  for (const k of ALLOWED_KEYS) {
-    if (typeof obj[k] !== "string") {
-      return `キー "${k}" の値は文字列である必要があります。`;
+    if (typeof obj !== "object" || obj === null || Array.isArray(obj)) {
+      return `${prefix}各要素は JSON オブジェクトである必要があります。`;
     }
-  }
 
-  const mustNotBeEmpty = ["expression", "meaning_ja", "ex_en", "ex_ja"];
-  const empties = mustNotBeEmpty.filter((k) => obj[k].trim() === "");
-  if (empties.length > 0) {
-    return `必須フィールドが空です: ${empties.join(", ")}`;
+    const keys = Object.keys(obj);
+
+    // 余分なキーチェック
+    const extraKeys = keys.filter((k) => !ALLOWED_KEYS.includes(k));
+    if (extraKeys.length > 0) {
+      return `${prefix}定義されていないキーがあります: ${extraKeys.join(", ")}`;
+    }
+
+    // 欠けているキーチェック
+    const missing = REQUIRED_KEYS.filter((k) => !keys.includes(k));
+    if (missing.length > 0) {
+      return `${prefix}必須キーが欠けています: ${missing.join(", ")}`;
+    }
+
+    // 型と必須値のチェック
+    for (const k of ALLOWED_KEYS) {
+      if (typeof obj[k] !== "string") {
+        return `${prefix}キー "${k}" の値は文字列である必要があります。`;
+      }
+    }
+
+    const mustNotBeEmpty = ["expression", "meaning_ja", "ex_en", "ex_ja"];
+    const empties = mustNotBeEmpty.filter((k) => obj[k].trim() === "");
+    if (empties.length > 0) {
+      return `${prefix}必須フィールドが空です: ${empties.join(", ")}`;
+    }
   }
 
   return null;
@@ -212,8 +238,19 @@ function buildAnkiPayload(v) {
   };
 }
 
-async function sendToAnki(vocabObj) {
-  const payload = buildAnkiPayload(vocabObj);
+function buildAnkiPayloads(items) {
+  const notes = items.map((v) => buildAnkiPayload(v).params.note);
+  return {
+    action: "addNotes",
+    version: 6,
+    params: { notes },
+  };
+}
+
+async function sendToAnki(items) {
+  const payload = items.length === 1
+    ? buildAnkiPayload(items[0])
+    : buildAnkiPayloads(items);
   const res = await fetch("http://127.0.0.1:8765", {
     method: "POST",
     body: JSON.stringify(payload),
