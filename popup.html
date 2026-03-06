@@ -1,26 +1,80 @@
 <!doctype html>
-<html>
+<html lang="ja">
   <head>
     <meta charset="utf-8" />
     <title>JSON → Anki</title>
     <style>
+      body {
+        width: 300px;
+        margin: 10px;
+        color: #222;
+        font: 13px/1.5 system-ui, sans-serif;
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 8px;
+      }
+      button {
+        padding: 7px 10px;
+        border: 1px solid #ccc;
+        border-radius: 8px;
+        background: #fff;
+        cursor: pointer;
+      }
       textarea {
-        width: 360px;
-        height: 200px;
+        width: 100%;
+        min-height: 260px;
+        box-sizing: border-box;
+        resize: vertical;
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 8px;
+        font: 12px/1.5 ui-monospace, monospace;
       }
       #status {
         margin-top: 8px;
         font-size: 12px;
       }
+      .ok { color: #0a7a38; }
+      .err { color: #c62828; }
+      .help {
+        margin: 0 0 8px;
+        color: #666;
+        font-size: 12px;
+      }
     </style>
   </head>
   <body>
-    <button id="copyPromptBtn">LLM用プロンプトをコピー</button>
-    <br /><br />
-    <textarea id="input" placeholder="ここに LLM の JSON を貼り付け"></textarea>
-    <br />
-    <button id="sendBtn">送信</button>
+    <div class="help">Deck: English:LLM / Note Type: English LLM</div>
+
+    <div class="row">
+      <button id="copyPromptBtn">プロンプトをコピー</button>
+      <button id="sendBtn">送信</button>
+    </div>
+
+    <textarea id="input" placeholder='ここに JSON を貼り付け
+[
+  {
+    "expression_en": "",
+    "meaning_ja": "",
+    "prompt_ja": "あごひげ",
+    "answer_en_main": "beard",
+    "answer_en_alt": "",
+    "ex_en": "The stylist said he could trim my beard as well.",
+    "ex_ja": "美容師はあごひげも整えることができると言った。",
+    "etymology": "",
+    "note": "",
+    "level": "A2",
+    "source": "",
+    "url": "",
+    "make_ej": "",
+    "make_je": "1"
+  }
+]'></textarea>
+
     <div id="status"></div>
+
     <script src="popup.js"></script>
   </body>
 </html>

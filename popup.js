@@ -1,273 +1,252 @@
-const ALLOWED_KEYS = [
-  "expression",
+const DECK_NAME = "English:LLM";
+const MODEL_NAME = "English LLM";
+const ANKI_URL = "http://127.0.0.1:8765";
+
+const KEYS = [
+  "expression_en",
   "meaning_ja",
+  "prompt_ja",
+  "answer_en_main",
+  "answer_en_alt",
   "ex_en",
   "ex_ja",
-  "pos",
+  "etymology",
   "note",
   "level",
   "source",
   "url",
+  "make_ej",
+  "make_je",
 ];
 
 const LLM_PROMPT = `
 あなたは日本人英語学習者向けの語彙コーチです。
-上記の会話でユーザーが質問した内容に関する英語の表現と語彙の全てについて，
+上記の会話ででてきた学ぶべき/間違えた/英語で言い表せなかった英語の表現と語彙の全てについて，
+以下の 14 個のキーだけを持つ JSON オブジェクトの配列を返してください。
+expression_en, meaning_ja, prompt_ja, answer_en_main, answer_en_alt, ex_en, ex_ja, etymology, note, level, source, url, make_ej, make_je
 
-以下の 9 キーだけを持つ JSON オブジェクトの配列 を返してください。
-
-- expression
-- meaning_ja
-- ex_en
-- ex_ja
-- pos
-- note
-- level
-- source
-- url
-
-厳守ルール：
-- 配列内の各オブジェクトは上記 9 個のキーをすべて必ず含めてください。欠けているキーがあってはいけません。
-- この 9 個以外のキーを追加してはいけません。
-- 各値はすべて文字列にしてください。配列・オブジェクト・null は使わないでください。
-- 情報が分からない項目は空文字列 "" にしてください。
+ルール:
+- 余計なキーは禁止
+- 不明な値は ""
+- make_ej / make_je は "1" または ""
+- 少なくともどちらか一方は "1"
+- make_ej="1" なら expression_en と meaning_ja 必須
+- make_je="1" なら prompt_ja と answer_en_main 必須
+- answer_en_alt は別表現を ";" 区切り
+- 出力は JSON 配列のみ
 
 各フィールドの意味：
-- expression: 覚えたい英語表現そのもの（不要な前後は削る）
-- meaning_ja: 日本語訳。1〜2文で簡潔に。
-- ex_en: expression を含む自然な英語例文を 1 文。
+- expression_en: 英語→日本語カードで表面に出す英語表現。EJ を作らない場合は "" でもよい。
+- meaning_ja: その表現の自然な日本語の意味。1〜2文で簡潔に。
+- prompt_ja: 日本語→英語カードで表面に出す日本語。単なる直訳ではなく、会話で言いたい意図が分かる自然な日本語にする。
+- answer_en_main: 日本語→英語カードでの第一候補の英語表現。
+- answer_en_alt: 日本語→英語カードで許容できる他の自然な英語表現。複数ある場合は 1 つの文字列の中でセミコロン ";" 区切りにする。なければ ""。
+- ex_en: 自然な英語例文を 1 文。
 - ex_ja: ex_en の自然な日本語訳。
-- pos: 品詞（verb, phrasal verb, noun, idiom など）。分からなければ ""。
-- note: ニュアンス・文法メモ・フォーマル度など、学習に役立つ補足。
-- level: 難易度の目安。CEFR (A2, B1, B2, C1 など) か、「初級」「中級」などでもよい。
-- source: その表現を見かけた元ネタ（YouTube 動画名など）。分からなければ ""。
+- etymology: 語源・イメージ・由来の説明。EJ カードで有益な場合のみ入れ、不要なら ""。
+- note: ニュアンス・文法・フォーマル度・使い分けなどの補足。
+- level: CEFR（A2, B1, B2, C1 など）や「初級」「中級」など。
+- source: 元ネタの簡単な説明。分からなければ ""。
 - url: 元ネタの URL。分からなければ ""。
+- make_ej: 英語→日本語カードを作るなら "1"、作らないなら ""。
+- make_je: 日本語→英語カードを作るなら "1"、作らないなら ""。
 
-これから、入力として JSON 配列を 1 つ渡します。
-その JSON は次のような形です。
+
+方向:
+- 理解中心なら make_ej="1", make_je=""
+- 発話中心なら make_ej="", make_je="1"
+- 本当に必要なものだけ両方 "1"
+入力 JSON の各要素は次のような形を想定します。
 
 [
-  {"expression": "ここに英語表現", "context": "ここに前後の英文文脈", "source": "ここに元ネタの簡単な説明（任意）", "url": "ここに元ネタの URL（任意）"},
-  {"expression": "ここに英語表現", "context": "ここに前後の英文文脈", "source": "ここに元ネタの簡単な説明（任意）", "url": "ここに元ネタの URL（任意）"}
+  {
+    "expression": "ここに英語表現",
+    "context": "ここに前後の英文文脈",
+    "source": "ここに元ネタの簡単な説明（任意）",
+    "url": "ここに元ネタの URL（任意）"
+  }
 ]
 
-上記の入力 JSON 配列を読み取り、指定した 9 キーだけを持つ別の JSON 配列を出力してください。
+上記の入力を読み取り、指定した 14 キーだけを持つ JSON 配列を返してください。
 `.trim();
 
-const REQUIRED_KEYS = ALLOWED_KEYS;
+const $input = document.getElementById("input");
+const $status = document.getElementById("status");
+const $copy = document.getElementById("copyPromptBtn");
+const $send = document.getElementById("sendBtn");
 
-const inputEl = document.getElementById("input");
-const statusEl = document.getElementById("status");
-const copyPromptBtn = document.getElementById("copyPromptBtn");
-const sendBtn = document.getElementById("sendBtn");
-
-inputEl.addEventListener("paste", (e) => {
-  // ペースト完了後の値を読むため、イベントループを一周待つ
+$copy.addEventListener("click", copyPrompt);
+$send.addEventListener("click", submitJson);
+$input.addEventListener("paste", () => {
   setTimeout(() => {
-    if (inputEl.value.trim()) {
-      setSuccess("貼り付けました。送信ボタンを押してください。");
-    }
+    if ($input.value.trim()) ok("貼り付けました。");
   }, 0);
 });
 
-copyPromptBtn.addEventListener("click", async () => {
-  await copyPromptToClipboard();
-});
-
-sendBtn.addEventListener("click", () => {
-  const text = inputEl.value.trim();
-  if (!text) {
-    return setError("送信する JSON が空です。");
-  }
-  handleText(text);
-});
-
-async function copyPromptToClipboard() {
+async function copyPrompt() {
   try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(LLM_PROMPT);
-      setSuccess("LLM 用プロンプトをコピーしました。");
-      return;
-    }
-  } catch (e) {
-    console.error(e);
-  }
-
-  const ta = document.createElement("textarea");
-  ta.value = LLM_PROMPT;
-  document.body.appendChild(ta);
-  ta.select();
-
-  try {
-    const ok = document.execCommand("copy");
-    if (ok) {
-      setSuccess("LLM 用プロンプトをコピーしました。");
-    } else {
-      setError("コピーに失敗しました。");
-    }
-      console.log(ok);
-  } catch (e) {
-    console.error(e);
-    setError("コピー中にエラーが発生しました。");
-  } finally {
-    document.body.removeChild(ta);
+    await navigator.clipboard.writeText(LLM_PROMPT);
+    ok("プロンプトをコピーしました。");
+  } catch {
+    err("コピーに失敗しました。");
   }
 }
 
-async function handleText(text) {
-  statusEl.textContent = "";
+async function submitJson() {
+  const text = $input.value.trim();
+  if (!text) return err("JSON が空です。");
 
-  let parsed;
+  let data;
   try {
-    parsed = JSON.parse(text);
-  } catch (e) {
-    return setError("JSON として解析できません。");
+    data = JSON.parse(text);
+  } catch {
+    return err("JSON として解析できません。");
   }
 
-  const items = normalizeItems(parsed);
-  if (!items) {
-    return setError("ルートは JSON 配列（または単一オブジェクト）である必要があります。");
-  }
-  if (items.length === 0) {
-    return setError("空の配列は送信できません。");
-  }
+  const items = Array.isArray(data) ? data : (data && typeof data === "object" ? [data] : null);
+  if (!items) return err("ルートは配列かオブジェクトにしてください。");
+  if (!items.length) return err("空の配列は送信できません。");
 
-  const err = validateSchema(items);
-  if (err) {
-    return setError(err);
-  }
+  const message = validate(items);
+  if (message) return err(message);
 
   try {
-    await sendToAnki(items);
-    setSuccess("Anki に追加しました。");
-    // 成功したらテキストをクリア
-    inputEl.value = "";
+    const result = await send(items);
+    ok(`Anki に ${result} 件追加しました。`);
+    $input.value = "";
   } catch (e) {
-    console.error(e);
-    setError("AnkiConnect への送信に失敗しました。Anki が起動しているか確認してください。");
+    err(`送信に失敗しました。${e.message || ""}`);
   }
 }
 
-function normalizeItems(input) {
-  if (Array.isArray(input)) {
-    return input;
+function validate(items) {
+  for (let i = 0; i < items.length; i++) {
+    const x = items[i];
+    const p = items.length > 1 ? `#${i + 1} ` : "";
+
+    if (!x || typeof x !== "object" || Array.isArray(x)) {
+      return `${p}各要素はオブジェクトにしてください。`;
+    }
+
+    const keys = Object.keys(x);
+    const extra = keys.filter(k => !KEYS.includes(k));
+    const missing = KEYS.filter(k => !keys.includes(k));
+
+    if (extra.length) return `${p}未定義キー: ${extra.join(", ")}`;
+    if (missing.length) return `${p}不足キー: ${missing.join(", ")}`;
+
+    for (const k of KEYS) {
+      if (typeof x[k] !== "string") return `${p}${k} は文字列にしてください。`;
+    }
+
+    const ej = x.make_ej.trim();
+    const je = x.make_je.trim();
+
+    if (!["", "1"].includes(ej)) return `${p}make_ej は "1" か "" にしてください。`;
+    if (!["", "1"].includes(je)) return `${p}make_je は "1" か "" にしてください。`;
+    if (ej !== "1" && je !== "1") return `${p}make_ej か make_je のどちらかは "1" にしてください。`;
+
+    if (ej === "1" && (!x.expression_en.trim() || !x.meaning_ja.trim())) {
+      return `${p}make_ej="1" のとき expression_en と meaning_ja は必須です。`;
+    }
+    if (je === "1" && (!x.prompt_ja.trim() || !x.answer_en_main.trim())) {
+      return `${p}make_je="1" のとき prompt_ja と answer_en_main は必須です。`;
+    }
   }
-  if (typeof input === "object" && input !== null) {
-    return [input];
-  }
-  return null;
+  return "";
 }
 
-function validateSchema(items) {
-  for (let i = 0; i < items.length; i += 1) {
-    const obj = items[i];
-    const prefix = items.length > 1 ? `#${i + 1} ` : "";
-
-    if (typeof obj !== "object" || obj === null || Array.isArray(obj)) {
-      return `${prefix}各要素は JSON オブジェクトである必要があります。`;
-    }
-
-    const keys = Object.keys(obj);
-
-    // 余分なキーチェック
-    const extraKeys = keys.filter((k) => !ALLOWED_KEYS.includes(k));
-    if (extraKeys.length > 0) {
-      return `${prefix}定義されていないキーがあります: ${extraKeys.join(", ")}`;
-    }
-
-    // 欠けているキーチェック
-    const missing = REQUIRED_KEYS.filter((k) => !keys.includes(k));
-    if (missing.length > 0) {
-      return `${prefix}必須キーが欠けています: ${missing.join(", ")}`;
-    }
-
-    // 型と必須値のチェック
-    for (const k of ALLOWED_KEYS) {
-      if (typeof obj[k] !== "string") {
-        return `${prefix}キー "${k}" の値は文字列である必要があります。`;
-      }
-    }
-
-    const mustNotBeEmpty = ["expression", "meaning_ja", "ex_en", "ex_ja"];
-    const empties = mustNotBeEmpty.filter((k) => obj[k].trim() === "");
-    if (empties.length > 0) {
-      return `${prefix}必須フィールドが空です: ${empties.join(", ")}`;
-    }
-  }
-
-  return null;
+function escapeHtml(s) {
+  return s
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 }
 
-function buildAnkiPayload(v) {
-  const front = v.expression;
+function toHtml(s) {
+  return escapeHtml(s.trim()).replace(/\r?\n/g, "<br>");
+}
 
-  const lines = [];
-  lines.push(v.meaning_ja);
-  lines.push("");
-  lines.push(v.ex_en);
-  lines.push(v.ex_ja);
-  if (v.note.trim()) {
-    lines.push("");
-    lines.push("Note: " + v.note.trim());
-  }
-  if (v.level.trim()) {
-    lines.push("Level: " + v.level.trim());
-  }
-  if (v.source.trim() || v.url.trim()) {
-    lines.push("");
-    if (v.source.trim()) lines.push("Source: " + v.source.trim());
-    if (v.url.trim()) lines.push(v.url.trim());
-  }
+function altToHtml(s) {
+  return s
+    .split(";")
+    .map(v => v.trim())
+    .filter(Boolean)
+    .map(escapeHtml)
+    .join("<br>");
+}
 
-  const back = lines.join("<br>");
+function firstField(v) {
+  return v.expression_en.trim() || v.answer_en_main.trim() || v.prompt_ja.trim();
+}
 
+function noteOf(v) {
   return {
-    action: "addNote",
-    version: 6,
-    params: {
-      note: {
-        deckName: "English:LLM",
-        modelName: "Basic",
-        fields: {
-          Front: front,
-          Back: back,
-        },
-        tags: ["llm", "auto"],
-      },
+    deckName: DECK_NAME,
+    modelName: MODEL_NAME,
+    fields: {
+      ExpressionEn: toHtml(firstField(v)),
+      MeaningJa: toHtml(v.meaning_ja),
+      PromptJa: toHtml(v.prompt_ja),
+      AnswerEnMain: toHtml(v.answer_en_main),
+      AnswerEnAlt: altToHtml(v.answer_en_alt),
+      ExampleEn: toHtml(v.ex_en),
+      ExampleJa: toHtml(v.ex_ja),
+      Etymology: toHtml(v.etymology),
+      Note: toHtml(v.note),
+      Level: toHtml(v.level),
+      Source: toHtml(v.source),
+      Url: toHtml(v.url),
+      Make_EJ: v.make_ej.trim(),
+      Make_JE: v.make_je.trim(),
     },
+    tags: buildTags(v),
   };
 }
 
-function buildAnkiPayloads(items) {
-  const notes = items.map((v) => buildAnkiPayload(v).params.note);
-  return {
-    action: "addNotes",
+function buildTags(v) {
+  const tags = ["llm"];
+  if (v.make_ej.trim() === "1") tags.push("ej");
+  if (v.make_je.trim() === "1") tags.push("je");
+  return tags;
+}
+
+async function send(items) {
+  const payload = {
+    action: items.length === 1 ? "addNote" : "addNotes",
     version: 6,
-    params: { notes },
+    params: items.length === 1
+      ? { note: noteOf(items[0]) }
+      : { notes: items.map(noteOf) },
   };
-}
 
-async function sendToAnki(items) {
-  const payload = items.length === 1
-    ? buildAnkiPayload(items[0])
-    : buildAnkiPayloads(items);
-  const res = await fetch("http://127.0.0.1:8765", {
+  const res = await fetch(ANKI_URL, {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
+
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
   const json = await res.json();
-  if (json.error) {
-    throw new Error(json.error);
-  }
+  if (json.error) throw new Error(String(json.error));
+
+  if (payload.action === "addNote") return 1;
+
+  const results = Array.isArray(json.result) ? json.result : [];
+  const failed = results.filter(v => v == null).length;
+  if (failed) throw new Error(`${failed} 件失敗しました。`);
+  return results.length;
 }
 
-function setError(msg) {
-  statusEl.textContent = msg;
-  statusEl.style.color = "red";
+function ok(msg) {
+  $status.textContent = msg;
+  $status.className = "ok";
 }
 
-function setSuccess(msg) {
-  statusEl.textContent = msg;
-  statusEl.style.color = "green";
+function err(msg) {
+  $status.textContent = msg;
+  $status.className = "err";
 }
-
