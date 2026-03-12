@@ -29,10 +29,9 @@ expression_en, meaning_ja, prompt_ja, answer_en_main, answer_en_alt, ex_en, ex_j
 ルール:
 - 余計なキーは禁止
 - 不明な値は ""
-- make_ej / make_je は "1" または ""
-- 少なくともどちらか一方は "1"
-- 英語を理解すれば十分なものは make_ej="1", make_je=""
-- 英語を使えたほうがいいものは make_ej="", make_je="1"
+- 読めれば十分な語と実際に自分で使えるようにしたい語の選別をして，make_ej / make_je は "1" または ""，少なくともどちらか一方は "1"をつける
+- ニュース的・書き言葉的・比喩的・固有名詞で、学習者が自分では言わなそうなものは 原則 make_ej="1", make_je=""
+- 日常会話や仕事のやり取りでそのまま使いやすいものは 原則 make_ej="", make_je="1" または両方
 - 本当に必要なものだけ両方 "1"
 - make_ej="1" なら expression_en と meaning_ja 必須
 - make_je="1" なら prompt_ja と answer_en_main 必須
