@@ -21,6 +21,7 @@ const KEYS = [
 
 const LLM_PROMPT = `
 あなたは日本人英語学習者向けの語彙コーチです。
+Englishネイティブの人と不自由なく会話ややり取りができるようになりたいです．
 上記の会話ででてきた学ぶべき/間違えた/英語で言い表せなかった英語の表現と語彙の全てについて，
 以下の 14 個のキーだけを持つ JSON オブジェクトの配列を返してください。
 expression_en, meaning_ja, prompt_ja, answer_en_main, answer_en_alt, ex_en, ex_ja, etymology, note, level, source, url, make_ej, make_je
@@ -30,6 +31,9 @@ expression_en, meaning_ja, prompt_ja, answer_en_main, answer_en_alt, ex_en, ex_j
 - 不明な値は ""
 - make_ej / make_je は "1" または ""
 - 少なくともどちらか一方は "1"
+- 英語を理解すれば十分なものは make_ej="1", make_je=""
+- 英語を使えたほうがいいものは make_ej="", make_je="1"
+- 本当に必要なものだけ両方 "1"
 - make_ej="1" なら expression_en と meaning_ja 必須
 - make_je="1" なら prompt_ja と answer_en_main 必須
 - answer_en_alt は別表現を ";" 区切り
@@ -52,10 +56,6 @@ expression_en, meaning_ja, prompt_ja, answer_en_main, answer_en_alt, ex_en, ex_j
 - make_je: 日本語→英語カードを作るなら "1"、作らないなら ""。
 
 
-方向:
-- 理解中心なら make_ej="1", make_je=""
-- 発話中心なら make_ej="", make_je="1"
-- 本当に必要なものだけ両方 "1"
 入力 JSON の各要素は次のような形を想定します。
 
 [
