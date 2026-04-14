@@ -57,12 +57,23 @@ expression_en, meaning_ja, prompt_ja, answer_en_main, answer_en_alt, ex_en, ex_j
 
 入力 JSON の各要素は次のような形を想定します。
 
+出力例：
 [
   {
-    "expression": "ここに英語表現",
-    "context": "ここに前後の英文文脈",
-    "source": "ここに元ネタの簡単な説明（任意）",
-    "url": "ここに元ネタの URL（任意）"
+    "expression_en": "get the hang of",
+    "meaning_ja": "コツをつかむ、慣れる",
+    "prompt_ja": "だんだんコツがつかめてきた、と言いたい",
+    "answer_en_main": "get the hang of it",
+    "answer_en_alt": "get used to; get accustomed to",
+    "ex_en": "It took me a while, but I finally got the hang of it.",
+    "ex_ja": "時間はかかったけど、ようやくコツをつかんだ。",
+    "etymology": "hang は「掛かり具合・感触」の意味。道具の持ち方の感覚が由来。",
+    "note": "カジュアル。会話で非常によく使われる。",
+    "level": "B1",
+    "source": "",
+    "url": "",
+    "make_ej": "1",
+    "make_je": "1"
   }
 ]
 
