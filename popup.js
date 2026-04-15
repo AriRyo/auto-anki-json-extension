@@ -22,8 +22,10 @@ const KEYS = [
 const LLM_PROMPT = `
 あなたは日本人英語学習者向けの語彙コーチです。
 Englishネイティブの人と不自由なく会話ややり取りができるようになりたいです．
+そのために上記で出てきた表現をAnkiに登録して覚えたいです．
 上記の会話ででてきた学ぶべき/間違えた/英語で言い表せなかった英語の表現と語彙の全てについて，
 以下の 14 個のキーだけを持つ JSON オブジェクトの配列を返してください。
+文脈がなくても理解できるように，短文や文ではなく短い単語や短い英語表現になおして一般化して以下のJSONを作成してください。
 expression_en, meaning_ja, prompt_ja, answer_en_main, answer_en_alt, ex_en, ex_ja, etymology, note, level, source, url, make_ej, make_je
 
 ルール:
