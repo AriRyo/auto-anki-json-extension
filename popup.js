@@ -21,7 +21,7 @@ const KEYS = [
 
 const LLM_PROMPT = `
 あなたは日本人英語学習者向けの語彙コーチです。
-Englishネイティブの人と不自由なく会話ややり取りができるようになりたいです．
+Englishネイティブの人の話を聞き取り，自分の意見を正確に伝えることができるようになりたいです．
 そのために上記で出てきた表現をAnkiに登録して覚えたいです．
 上記の会話ででてきた学ぶべき/間違えた/英語で言い表せなかった英語の表現と語彙の全てについて，
 以下の 14 個のキーだけを持つ JSON オブジェクトの配列を返してください。
@@ -64,7 +64,7 @@ expression_en, meaning_ja, prompt_ja, answer_en_main, answer_en_alt, ex_en, ex_j
   {
     "expression_en": "get the hang of",
     "meaning_ja": "コツをつかむ、慣れる",
-    "prompt_ja": "だんだんコツがつかめてきた、と言いたい",
+    "prompt_ja": "Aのコツをつかむ，慣れる，Aの勘所がわかる",
     "answer_en_main": "get the hang of it",
     "answer_en_alt": "get used to; get accustomed to",
     "ex_en": "It took me a while, but I finally got the hang of it.",
