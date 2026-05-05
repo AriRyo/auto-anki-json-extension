@@ -124,11 +124,21 @@ async function submitJson() {
 
   try {
     const result = await send(items);
-    ok(`Anki に ${result} 件追加しました。`);
-    $input.value = "";
+    if (result.added > 0) ok(formatResult(result));
+    else err(formatResult(result));
+    if (result.added > 0 && result.skipped.length === 0) $input.value = "";
   } catch (e) {
     err(`送信に失敗しました。${e.message || ""}`);
   }
+}
+
+function formatResult({ added, skipped }) {
+  const parts = [`Anki に ${added} 件追加しました。`];
+  if (skipped.length) {
+    const labels = skipped.map(s => firstField(s) || "(無名)").join(", ");
+    parts.push(`重複のためスキップ ${skipped.length} 件: ${labels}`);
+  }
+  return parts.join(" / ");
 }
 
 function validate(items) {
@@ -226,31 +236,48 @@ function buildTags(v) {
 }
 
 async function send(items) {
-  const payload = {
-    action: items.length === 1 ? "addNote" : "addNotes",
-    version: 6,
-    params: items.length === 1
-      ? { note: noteOf(items[0]) }
-      : { notes: items.map(noteOf) },
-  };
+  const notes = items.map(noteOf);
 
+  const canAdd = await ankiInvoke("canAddNotes", { notes });
+  if (!Array.isArray(canAdd) || canAdd.length !== notes.length) {
+    throw new Error("canAddNotes の応答が不正です。");
+  }
+
+  const addable = [];
+  const skipped = [];
+  notes.forEach((note, i) => {
+    if (canAdd[i]) addable.push(note);
+    else skipped.push(items[i]);
+  });
+
+  if (addable.length === 0) {
+    return { added: 0, skipped };
+  }
+
+  const params = addable.length === 1 ? { note: addable[0] } : { notes: addable };
+  const action = addable.length === 1 ? "addNote" : "addNotes";
+  const result = await ankiInvoke(action, params);
+
+  if (action === "addNote") return { added: 1, skipped };
+
+  const results = Array.isArray(result) ? result : [];
+  const failed = results.filter(v => v == null).length;
+  if (failed) throw new Error(`${failed} 件の追加に失敗しました。`);
+  return { added: results.length, skipped };
+}
+
+async function ankiInvoke(action, params) {
   const res = await fetch(ANKI_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ action, version: 6, params }),
   });
 
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
   const json = await res.json();
   if (json.error) throw new Error(String(json.error));
-
-  if (payload.action === "addNote") return 1;
-
-  const results = Array.isArray(json.result) ? json.result : [];
-  const failed = results.filter(v => v == null).length;
-  if (failed) throw new Error(`${failed} 件失敗しました。`);
-  return results.length;
+  return json.result;
 }
 
 function ok(msg) {
